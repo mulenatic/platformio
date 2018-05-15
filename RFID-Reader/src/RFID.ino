@@ -9,6 +9,8 @@
 #include <SPI.h>
 #include <MFRC522.h>
 
+#include <ESP8266HTTPClient.h>
+
 #define RST_PIN 20
 #define SS_PIN 2
 MFRC522 mfrc522(SS_PIN, RST_PIN);
@@ -16,11 +18,10 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);
 // Prepare key - all keys are set to FFFFFFFFFFFFh at chip delivery from the factory;
 MFRC522::MIFARE_Key key;
 
-WiFiClientSecure client;
-WiFiClient clientLock;
-const char* hostSN = "poc9.osnow.de";
+HTTPClient client;
+HTTPClient clientLock;
 const int httpsPort = 443;
-const char* hostLock = "192.168.2.104";
+const String hostLock = "192.168.2.104";
 const int httpPort = 80;
 
 const char* fingerprint = "dc a6 d8 b8 0a ea 7e 0b 32 77 14 05 2f 27 b2 90 32 b7 7e b2";
@@ -165,116 +166,74 @@ void readCardID() {
   Serial.print("ID: ");
   Serial.println(cardId);
 
-  if (!client.connect(hostSN, httpsPort)) {
-    Serial.println("Connection to ServiceNow failed.");
-    return;
+
+  String url = "https://poc9.osnow.de/api/x_buergerbox/buergerboxrestapi/buergerbox/kartenid/" + cardId;
+  client.begin(url, fingerprint);
+  client.setAuthorization("bm9kZU1DVToxMTEx");
+
+  int httpCode =  client.GET();
+
+  Serial.print("Statuscode: ");
+  Serial.println(httpCode);
+
+  if (httpCode <= 0 ) {
+    Serial.println("Unexpected failure communicatig to lock.");
   } else {
-    Serial.println("Connection to ServiceNow succeded");
-  }
 
-  if ( client.verify(fingerprint, hostSN)) {
-    Serial.println("Certificates matches");
-  } else {
-    Serial.println("Certifiactes don't match");
-  }
+    StaticJsonBuffer<200> jsonBuffer;
+    String payload = client.getString();
+    Serial.println(payload);
 
 
-  String url = "/api/x_buergerbox/buergerboxrestapi/buergerbox/kartenid/" + cardId;
+    if (httpCode != HTTP_CODE_OK) {
 
-  Serial.print("Requesting URL: ");
-  Serial.println(url);
+      Serial.println("Error from ServiceNow");
+      Serial.println(payload);
+      
+    } else {
 
-  client.print(String("GET ") + url + " HTTP/1.1\r\n" +
-	       "Host: " + hostSN + "\r\n" +
-	       "User-Agent: BuildFailureDetectorESP8266\r\n" + 
-	       "Authorization: Basic bm9kZU1DVToxMTEx\r\n" +
-	       "Connection: close\r\n\r\n");
-  unsigned long timeout = millis();
-  while(client.available() == 0) {
-    if(millis() - timeout > 5000) {
-      Serial.println(">>> Client timeout!");
-      client.stop();
-      return;
+      JsonObject& root = jsonBuffer.parseObject(payload);
+  
+      const char* success = root["result"]["success"];
+      int boxid = root["result"]["boxid"];
+
+      Serial.print("Got answer from ServiceNow, boxid: ");
+      Serial.println(boxid);
+
+
+      //==============================
+      String urlLock = "http://" + hostLock + "/lock/open?number=" + boxid;
+      clientLock.begin(urlLock);
+      int httpLockCode = clientLock.GET();
+
+      if (httpLockCode <! 0) {
+	Serial.println("Unexpected failure communicatig to lock.");
+      } else {
+
+	if (httpLockCode != HTTP_CODE_OK) {
+	  Serial.println("Could not open lock");
+	} else {
+
+	  Serial.println("Successfully opened lock");
+
+	  String urlLockRelease = "http://" + hostLock + "/lock/open?number=" + boxid;
+	  clientLock.begin(urlLockRelease);
+	  int httpLockReleaseCode = clientLock.GET();
+
+	  if (httpLockReleaseCode > 0) {
+
+	    if (httpLockReleaseCode != HTTP_CODE_OK) {
+	      Serial.println("Could not open lock");
+	    } else {
+	      Serial.println("Successfully released lock");
+	    }
+	  }
+	}
+      }
+	
+      delay(1000);
+
     }
   }
-
-  Serial.println("Send request, next wait for answer");
-
-  String line ="";
-  while(client.available()) {
-    Serial.print("Before line:");
-    Serial.println(line);
-    line = line  + client.readStringUntil('\r');
-        Serial.print("After line:");
-    Serial.println(line);
-
-  }
-
-  Serial.print("Response by ServiceNow: ");
-  Serial.println(line);
-
-  StaticJsonBuffer<200> jsonBuffer;
-  JsonObject& root = jsonBuffer.parseObject(line);
-  
-  const char* result = root["result"];
-
-  JsonObject& resultRoot = jsonBuffer.parseObject(result);
-  
-  const char* success = resultRoot["success"];
-				   
-  int boxid = root["boxid"];
-
-  Serial.println("Boxid: ");
-  Serial.println(boxid);
-
-  Serial.println();
-  Serial.println("Closing connection to SN");
-
-  //==============================
-
-  if (!clientLock.connect(hostLock, httpPort)) {
-    Serial.println("Connection to Lock failed.");
-    return;
-  } else {
-    Serial.println("Connection to Lock succeded");
-  }
-
-  url = "/lock/open?number=1";
-
-  Serial.print("Requesting URL: ");
-  Serial.println(url);
-
-  clientLock.print(String("GET ") + url + " HTTP/1.1\r\n" +
-		   "Host: " + hostLock + "\r\n" +
-		   "User-Agent: BuildFailureDetectorESP8266\r\n" + 
-		   "Connection: close\r\n\r\n");
-  timeout = millis();
-  while(clientLock.available() == 0) {
-    if(millis() - timeout > 5000) {
-      Serial.println(">>> ClientLock timeout!");
-      clientLock.stop();
-      return;
-    }
-  }
-
-  Serial.println("Send request, next wait for answer");
-
-  while(clientLock.available()) {
-    String line = clientLock.readStringUntil('\r');
-    Serial.print(line);
-  }
-
-  Serial.println();
-  Serial.println("Closing connection to Lock");
-
-  
-
-  delay(1000);
-
-    
-    
-  //  }
-  //  return cardId;
-  
 }
       
