@@ -10,6 +10,37 @@ const byte led_blue_pin = D4;
 
 ESP8266WebServer server(80);
 
+void handleLockOpenGet() {
+  
+  String numberArg = server.arg("number");
+  if ( numberArg == "" ) {
+    server.send(409, "textjson", "{ \"success\": \"false\" }");
+  } else {
+
+    int pin = -1;
+    if (numberArg == "1" ) {
+      pin = led_red_pin;
+    } else if (numberArg == "2") {
+      pin = led_green_pin;
+    } else if (numberArg == "3" ) {
+      pin = led_blue_pin;
+    }
+
+	
+    if ( pin == -1 ) {
+      server.send(409, "textjson", "{ \"success\": \"false\" }");
+    } else {
+      digitalWrite(pin, HIGH);
+      delay(5000);
+      digitalWrite(pin, LOW);
+	
+
+      server.send(200, "textjson", "{ \"success\": \"true\" }");
+    }
+  }
+}
+
+
 void setup() {
   Serial.begin(115200);
   Serial.println("Booting");
@@ -29,9 +60,7 @@ void setup() {
   // Port defaults to 8266
   ArduinoOTA.setPort(8266);
 
-  server.on("/red", HTTP_GET, handleRedGet);
-  server.on("/green", HTTP_GET, handleGreenGet);
-  server.on("/blue", HTTP_GET, handleBlueGet);
+  server.on("/lock/open", HTTP_GET, handleLockOpenGet);
   server.begin();
   Serial.println("ESP8266WebServer started");
 
@@ -86,35 +115,10 @@ void setup() {
 }
 
 void loop() {
-  ArduinoOTA.handle();
 
+  ArduinoOTA.handle();
   server.handleClient();
   
 }
-    
-void handleRedGet() {
-  digitalWrite(led_red_pin, HIGH);
-  delay(5000);
-  digitalWrite(led_red_pin, LOW);
 
-  server.send(200, "text/json", "{ \"success\": \"true\" }");
-}
-
-void handleGreenGet() {
-  digitalWrite(led_green_pin, HIGH);
-  delay(5000);
-  digitalWrite(led_green_pin, LOW);
-
-  server.send(200, "text/json", "{ \"success\": \"true\" }");
-}
-
-void handleBlueGet() {
-  digitalWrite(led_blue_pin, HIGH);
-  delay(5000);
-  digitalWrite(led_blue_pin, LOW);
-
-  server.send(200, "text/json", "{ \"success\": \"true\" }");
-}
-
-
-      
+	  
