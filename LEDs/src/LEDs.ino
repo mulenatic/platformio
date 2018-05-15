@@ -4,9 +4,10 @@
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>
 
-const byte led_red_pin = D2;
-const byte led_green_pin = D3;
-const byte led_blue_pin = D4;
+const byte pin_realais_1 = D5;
+const byte pin_realais_2 = D6;
+const byte pin_realais_3 = D7;
+const byte pin_realais_4 = D8;
 
 ESP8266WebServer server(80);
 
@@ -19,20 +20,22 @@ void handleLockOpenGet() {
 
     int pin = -1;
     if (numberArg == "1" ) {
-      pin = led_red_pin;
+      pin = pin_realais_1;
     } else if (numberArg == "2") {
-      pin = led_green_pin;
+      pin = pin_realais_2;
     } else if (numberArg == "3" ) {
-      pin = led_blue_pin;
+      pin = pin_realais_3;
+    } else if (numberArg == "4" ) {
+      pin = pin_realais_4;
     }
 
 	
     if ( pin == -1 ) {
       server.send(409, "textjson", "{ \"success\": \"false\" }");
     } else {
-      digitalWrite(pin, HIGH);
-      delay(5000);
       digitalWrite(pin, LOW);
+      delay(5000);
+      digitalWrite(pin, HIGH);
 	
 
       server.send(200, "textjson", "{ \"success\": \"true\" }");
@@ -45,14 +48,15 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Booting");
 
-  pinMode(led_red_pin, OUTPUT);
-  pinMode(led_green_pin, OUTPUT);
-  pinMode(led_blue_pin, OUTPUT);
+  pinMode(pin_realais_1, OUTPUT);
+  pinMode(pin_realais_2, OUTPUT);
+  pinMode(pin_realais_3, OUTPUT);
+  pinMode(pin_realais_4, OUTPUT);
 
-  digitalWrite(led_red_pin, LOW);
-  digitalWrite(led_green_pin, LOW);
-  digitalWrite(led_blue_pin, LOW);
-  
+  digitalWrite(pin_realais_1, HIGH);
+  digitalWrite(pin_realais_2, HIGH);
+  digitalWrite(pin_realais_3, HIGH);
+  digitalWrite(pin_realais_4, HIGH);
 
   WiFiManager wifiManager;
   //wifiManager.autoConnect("esp8266-setup");
