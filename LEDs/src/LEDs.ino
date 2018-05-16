@@ -14,7 +14,10 @@ ESP8266WebServer server(80);
 void handleLockOpenGet() {
   
   String numberArg = server.arg("number");
+  Serial.print("Opening lock number ");
+  Serial.println(numberArg);
   if ( numberArg == "" ) {
+    Serial.println("Number not given");
     server.send(409, "textjson", "{ \"success\": \"false\" }");
   } else {
 
@@ -31,14 +34,16 @@ void handleLockOpenGet() {
 
 	
     if ( pin == -1 ) {
+      Serial.println("Only number 1-4 are valid lockids");
       server.send(409, "textjson", "{ \"success\": \"false\" }");
     } else {
+      Serial.println("Successfully opened lock");
+      server.send(200, "textjson", "{ \"success\": \"true\" }");
+
       digitalWrite(pin, LOW);
       delay(5000);
       digitalWrite(pin, HIGH);
-	
 
-      server.send(200, "textjson", "{ \"success\": \"true\" }");
     }
   }
 }
@@ -62,6 +67,7 @@ void setup() {
   //wifiManager.autoConnect("esp8266-setup");
 
   // Port defaults to 8266
+  WiFi.hostname("arudinoLock");
   ArduinoOTA.setPort(8266);
 
   server.on("/lock/open", HTTP_GET, handleLockOpenGet);

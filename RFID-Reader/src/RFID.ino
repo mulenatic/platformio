@@ -20,9 +20,8 @@ MFRC522::MIFARE_Key key;
 
 HTTPClient client;
 HTTPClient clientLock;
-const int httpsPort = 443;
 const String hostLock = "192.168.2.104";
-const int httpPort = 80;
+
 
 const char* fingerprint = "dc a6 d8 b8 0a ea 7e 0b 32 77 14 05 2f 27 b2 90 32 b7 7e b2";
 
@@ -106,16 +105,6 @@ void loop() {
 
   ArduinoOTA.handle();
   readCardID();
-  
-  //server.handleClient();
-}
-
-void handleGetCardId() {
-
-  //String cardId = readCardID();
-  //Serial.print("ID: ");
-  //Serial.println(cardId);
-  //server.send(200, "text/json", "{ \"success\": \"true\", \"cardId\": \"" + cardId + "\" }");
 
 }
 
@@ -123,7 +112,6 @@ void readCardID() {
 
   String cardId = "";
   boolean isFinished = false;
-  //  while(!isFinished) {
 
   yield();
 
@@ -131,13 +119,11 @@ void readCardID() {
 
   // Look for new cards
   if ( ! mfrc522.PICC_IsNewCardPresent()) {
-    //continue;
     return;
   }
 
   // Select one of the cards
   if ( ! mfrc522.PICC_ReadCardSerial()) {
-    //      continue;
     return;
   }
 
@@ -184,7 +170,6 @@ void readCardID() {
     String payload = client.getString();
     Serial.println(payload);
 
-
     if (httpCode != HTTP_CODE_OK) {
 
       Serial.println("Error from ServiceNow");
@@ -202,38 +187,92 @@ void readCardID() {
 
 
       //==============================
-      String urlLock = "http://" + hostLock + "/lock/open?number=" + boxid;
-      clientLock.begin(urlLock);
-      int httpLockCode = clientLock.GET();
-
-      if (httpLockCode <! 0) {
-	Serial.println("Unexpected failure communicatig to lock.");
+      if(!openLock(boxid)) {
+	Serial.println("Error opening lock");
+	Serial.println(payload);
       } else {
-
-	if (httpLockCode != HTTP_CODE_OK) {
-	  Serial.println("Could not open lock");
-	} else {
-
-	  Serial.println("Successfully opened lock");
-
-	  String urlLockRelease = "http://" + hostLock + "/lock/open?number=" + boxid;
-	  clientLock.begin(urlLockRelease);
-	  int httpLockReleaseCode = clientLock.GET();
-
-	  if (httpLockReleaseCode > 0) {
-
-	    if (httpLockReleaseCode != HTTP_CODE_OK) {
-	      Serial.println("Could not open lock");
-	    } else {
-	      Serial.println("Successfully released lock");
-	    }
-	  }
-	}
+	releaseBox(boxid, cardId);
       }
-	
+      
       delay(1000);
 
     }
   }
 }
       
+boolean openLock(int boxid) {
+
+  Serial.println();
+  Serial.println("Opening lock");
+  
+  String urlLock = "http://" + hostLock + "/lock/open?number=" + String(boxid);
+  Serial.print("Openeing url: ");
+  Serial.println(urlLock);
+  clientLock.begin(urlLock);
+  int httpLockCode = clientLock.GET();
+
+  Serial.print("httpLockCode: ");
+  Serial.println(httpLockCode);
+  if (httpLockCode <= 0) {
+    Serial.println("Unexpected failure communicatig to lock.");
+    return false;
+  } else {
+
+    if (httpLockCode != HTTP_CODE_OK) {
+      Serial.println("Could not open lock");
+      return false;
+    } else {
+
+      Serial.println("Successfully opened lock");
+      return true;
+
+    }
+  }
+}
+
+
+boolean releaseBox(int boxid, String cardId) {
+
+  Serial.println();
+  Serial.print("Releasing lock for box ");
+  Serial.print(boxid);
+  Serial.print(" and cardId " );
+  Serial.println(cardId);
+
+  String url = "https://poc9.osnow.de/api/x_buergerbox/buergerboxrestapi/buergerbox/box/" + String(boxid);
+  url = url + "/kartenid/" + cardId;
+  Serial.println(url);
+  client.begin(url, fingerprint);
+  client.setAuthorization("bm9kZU1DVToxMTEx");
+
+  int httpCode =  client.GET();
+
+  Serial.print("Statuscode: ");
+  Serial.println(httpCode);
+
+  if (httpCode <= 0 ) {
+    Serial.println("Unexpected failure communicatig to ServiceNow.");
+  } else {
+
+    StaticJsonBuffer<200> jsonBuffer;
+    String payload = client.getString();
+    Serial.println(payload);
+
+
+    if (httpCode != HTTP_CODE_OK) {
+
+      Serial.println("Error from ServiceNow");
+      Serial.println(payload);
+      
+    } else {
+
+      JsonObject& root = jsonBuffer.parseObject(payload);
+  
+      const char* success = root["result"]["success"];
+      //int boxid = root["result"]["boxid"];
+
+      Serial.print("Got answer from ServiceNow, boxid: ");
+      //      Serial.println(boxid);
+    }
+  }
+}
