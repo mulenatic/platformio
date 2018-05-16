@@ -271,8 +271,9 @@ boolean releaseBox(int boxid, String cardId) {
       const char* success = root["result"]["success"];
       //int boxid = root["result"]["boxid"];
 
-      Serial.print("Got answer from ServiceNow, boxid: ");
-      //      Serial.println(boxid);
+      Serial.print("Got answer from ServiceNow, success: ");
+      Serial.println(success);
+      Serial.println();
     }
   }
 }
