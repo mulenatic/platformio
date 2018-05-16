@@ -20,8 +20,10 @@ MFRC522::MIFARE_Key key;
 
 HTTPClient client;
 HTTPClient clientLock;
-const String hostLock = "192.168.2.104";
+const String hostLockBackup = "192.168.2.104";
+String hostLock = "";
 
+ESP8266WebServer server(80);
 
 const char* fingerprint = "dc a6 d8 b8 0a ea 7e 0b 32 77 14 05 2f 27 b2 90 32 b7 7e b2";
 
@@ -55,9 +57,10 @@ void setup() {
 
   // ArduinoOTA.setPasswordHash(xxx);
 
-  //server.on("/cardId", HTTP_GET, handleGetCardId);
-  //server.begin();
-  //Serial.println("ESP8266WebServer started");
+  server.on("/lockIP", HTTP_GET, handleGetLockIp);
+  server.on("/lockIP", HTTP_POST, handlePostLockIp);
+  server.begin();
+  Serial.println("ESP8266WebServer started");
 
 
   ArduinoOTA.onStart([]() {
@@ -105,6 +108,7 @@ void loop() {
 
   ArduinoOTA.handle();
   readCardID();
+  server.handleClient();
 
 }
 
@@ -204,8 +208,12 @@ boolean openLock(int boxid) {
 
   Serial.println();
   Serial.println("Opening lock");
-  
-  String urlLock = "http://" + hostLock + "/lock/open?number=" + String(boxid);
+
+  String host = hostLockBackup;
+  if (hostLock != "" ){
+    host =  hostLock;
+  }
+  String urlLock = "http://" + host + "/lock/open?number=" + String(boxid);
   Serial.print("Openeing url: ");
   Serial.println(urlLock);
   clientLock.begin(urlLock);
@@ -277,3 +285,42 @@ boolean releaseBox(int boxid, String cardId) {
     }
   }
 }
+
+
+void handleGetLockIp() {
+
+  char html[2000];
+  char hostChar[15];
+
+  hostLock.toCharArray(hostChar, 15);
+
+  sprintf(html,
+	  "<html>\
+<link rel='stylesheet' href='//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css' integrity='sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u' crossorigin='anonymous'><link rel='stylesheet' href='//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css' integrity='sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u' crossorigin='anonymous'><link rel='stylesheet' href='//maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css' integrity='sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u' crossorigin='anonymous'>\
+<body>\
+<h1>Lock IP</h1>\
+%s\
+<form action='/lockIP' method='POST'>\
+<div class='form-group'>\
+<label for='ip'>Lock IP:</label>\
+<input type='text' name='ip'></br>\
+</div>\
+<button class='btn btn-primary' type='submit'>Submit</button>\
+</form>\
+</body></html>", hostChar);
+
+  server.send(200, "text/html", html);
+
+}
+
+void handlePostLockIp() {
+
+  if (server.args() > 0) {
+    hostLock = server.arg("ip");
+    Serial.print("Setting hostLock to: ");
+    Serial.println(hostLock);
+  }
+
+  handleGetLockIp();
+}
+    
