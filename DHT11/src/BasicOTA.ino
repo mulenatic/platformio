@@ -1,3 +1,4 @@
+#include <ESP8266HTTPClient.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
 #include <ArduinoOTA.h>
@@ -6,6 +7,9 @@
 #include <DHT.h>
 
 DHT dht(D5, DHT11);
+
+HTTPClient httpClient;
+String deviceId = String(ESP.getChipId());
 
 void setup() {
   Serial.begin(115200);
@@ -82,15 +86,37 @@ void setup() {
 void loop() {
   ArduinoOTA.handle();
 
-  if(millis() % 2000 == 0) {
+  if(millis() % 600000 == 0) {
 
     boolean measurementCompleted = false;
     while(!measurementCompleted) {
       float temperature = dht.readTemperature();
+      float humidity = dht.readHumidity();
 
       if (!isnan(temperature)) {
 	Serial.print("Temperature: ");
 	Serial.println(temperature);
+
+	httpClient.begin("http://192.168.2.111:3000/api/measurement");
+	httpClient.addHeader("Content-Type", "application/x-www-form-urlencoded");
+
+	int httpCode = httpClient.POST("deviceId=" + deviceId + "&measurementType=temperature&measurementValue=" + String(temperature));
+	String response = httpClient.getString();
+
+	Serial.println(httpCode);
+	Serial.println(response);
+
+	Serial.print("Humidity: ");
+	Serial.println(humidity);
+
+	httpCode = httpClient.POST("deviceId=" + deviceId + "&measurementType=humidity&measurementValue=" + String(humidity));
+	response = httpClient.getString();
+
+	Serial.println(httpCode);
+	Serial.println(response);
+
+
+	httpClient.end();
 
 	measurementCompleted = true;
       }
